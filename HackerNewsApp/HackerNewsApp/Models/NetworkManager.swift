@@ -7,22 +7,28 @@
 
 import Foundation
 
+@MainActor
 class NetworkManager: ObservableObject {
     
     @Published var posts = [Post]()
     @Published var idArray: [Int] = []
+    @Published var isLoading: Bool = false
+    
     private var maxArticles: Int = 5
     
     func increaseMaxArticles() {
         maxArticles += 5
     }
     
+    //get list of all the top stories before getting data from each story
     func fetchIds() {
         let finalURL = "https://hacker-news.firebaseio.com/v0/topstories.json"
         guard let url = URL(string: finalURL) else {
             print("[d] invalid url<##>")
             return
         }
+        
+        isLoading = true
         
         let session = URLSession(configuration: .default)
         let task = session.dataTask(with: url) { (data, response, error) in
@@ -37,12 +43,17 @@ class NetworkManager: ObservableObject {
                 do {
                     let results = try decoder.decode([Int].self, from: data)
                     Task {
-                        let arrayLength = min(results.count, self.maxArticles)
-                        self.idArray = Array(results.prefix(arrayLength))
-                      
-                        //TODO: show more shows when it's not supposed to
-                        for id in self.idArray {
-                            self.fetchData(id: id)
+                        let arrayLength = await min(results.count, self.maxArticles)
+                        let resultArray = Array(results.prefix(arrayLength))
+                        
+                        await MainActor.run {
+                            //get data for each story id
+                            resultArray.forEach { id in
+                                if !self.idArray.contains(id) {
+                                    self.idArray.append(id)
+                                    self.fetchData(id: id)
+                                }
+                            }
                         }
                     }
                 } catch {
@@ -53,11 +64,12 @@ class NetworkManager: ObservableObject {
         task.resume()
     }
     
+    //get data by id
     func fetchData(id: Int) {
-        print("[d] fetch data by id<##> \(id)")
+//        print("[d] fetch data by id<##> \(id)")
         let endPoint = "https://hacker-news.firebaseio.com/v0/item/"
         let finalURL = "\(endPoint)\(id).json"
-        print("[d] url<##> \(finalURL)")
+//        print("[d] url<##> \(finalURL)")
         guard let url = URL(string: finalURL) else {
             print("[d] invalid url<##>")
             return
@@ -76,8 +88,18 @@ class NetworkManager: ObservableObject {
                 do {
                     let results = try decoder.decode(Post.self, from: data)
 //                    print("[d] results<##> \(results)")
-                    DispatchQueue.main.async {
-                        self.posts.append(results)
+                    Task {
+                        
+                        await MainActor.run {
+                            self.posts.append(results)
+                            
+                            //all data is fetched for all ids
+                            if self.posts.count == self.idArray.count {
+                                self.isLoading = false
+                            }
+                               
+                        }
+                       
                     }
                 } catch {
                     print(error)
