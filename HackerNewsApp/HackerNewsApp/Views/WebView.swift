@@ -51,7 +51,7 @@ struct WebView: UIViewRepresentable {
     }
 }
 
-
+//handles loading state
 extension WebView {
     class Coordinator: NSObject, WKNavigationDelegate {
         var parent: WebView

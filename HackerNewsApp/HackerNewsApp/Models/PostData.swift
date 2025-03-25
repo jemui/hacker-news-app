@@ -10,8 +10,8 @@ import Foundation
 struct Post: Decodable, Identifiable, Equatable, Hashable {
     let id: Int
     let by: String
-    let descendants: Int
-    let kids: [Int]
+    let descendants: Int?
+    let kids: [Int]?
     let score: Int
     let time: Int
     let title: String
